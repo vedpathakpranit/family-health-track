@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedRemember - Personal Medicine Log</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Dexie.js for easy IndexedDB database management -->
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+</head>
+<body class="bg-gray-50 font-sans min-h-screen pb-12">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-md p-4 sticky top-0 z-10">
+        <div class="max-w-xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight">💊 MedRemember</h1>
+            <span class="text-xs bg-blue-700 px-2.5 py-1 rounded-full border border-blue-500">Local Storage</span>
+        </div>
+    </header>
+
+    <main class="max-w-xl mx-auto p-4 space-y-6">
+
+        <!-- Section 1: Manage Profiles -->
+        <section class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+            <h2 class="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                👥 Family & Friends Profiles
+            </h2>
+            <div class="flex gap-2 mb-3">
+                <input id="new-member-name" type="text" placeholder="e.g., Myself, Mom, Ramesh" 
+                       class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="addFamilyMember()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                    + Add
+                </button>
+            </div>
+            <div id="members-badge-list" class="flex flex-wrap gap-1.5 min-h-[28px]">
+                <!-- Dynamic Badges Appended Here -->
+            </div>
+        </section>
+
+        <!-- Section 2: Log New Medicine -->
+        <section class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
+            <h2 class="text-md font-semibold text-gray-800 flex items-center gap-2 border-b pb-2">
+                📝 Log a Medicine
+            </h2>
+            
+            <form id="med-form" onsubmit="saveMedicineLog(event)" class="space-y-4">
+                <!-- Medicine Name -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Medicine / Brand Name *</label>
+                    <input id="med-name" type="text" required placeholder="e.g., Paracetamol 500mg, Saridon" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <!-- Reason / Why taken -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Why was it taken? *</label>
+                    <input id="med-reason" type="text" required placeholder="e.g., Quick relief for headache, acidity" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <!-- Grid Layout for User & Purchase Type -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Who took it? *</label>
+                        <select id="med-user" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <!-- Options populated dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Purchase Type</label>
+                        <select id="med-type" onchange="togglePrescriptionUpload()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="Direct">Direct Counter Purchase</option>
+                            <option value="Prescribed">Prescribed by Doctor</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Dynamic Image Upload Conditional Elements -->
+                <div class="grid grid-cols-1 gap-3">
+                    <div>
+                        <label id="image-label" class="block text-xs font-semibold text-gray-600 uppercase mb-1">Upload Strip/Tablet Photo *</label>
+                        <input id="med-image" type="file" accept="image/*" required
+                               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                    </div>
+                    <div id="prescription-upload-container" class="hidden">
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Upload Prescription Photo</label>
+                        <input id="prescription-image" type="file" accept="image/*" 
+                               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 cursor-pointer">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 rounded-lg text-sm shadow transition">
+                    💾 Save Entry
+                </button>
+            </form>
+        </section>
+
+        <!-- Section 3: History Log Display -->
+        <section class="space-y-3">
+            <h2 class="text-md font-semibold text-gray-800 flex items-center justify-between px-1">
+                <span>⏳ Past Logs History</span>
+                <span id="log-count" class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">0 entries</span>
+            </h2>
+            <div id="history-container" class="space-y-3">
+                <!-- Dynamic Logs Appended Here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Inline Script App Logic -->
+    <script>
+        // Initialize the Database
+        const db = new Dexie("MedRememberDB");
+        db.version(1).stores({
+            members: '++id, name',
+            logs: '++id, name, reason, userName, type, timestamp'
+        });
+
+        // App Initializer
+        async function initApp() {
+            await ensureDefaultMember();
+            await renderMembers();
+            await renderLogs();
+        }
+
+        async function ensureDefaultMember() {
+            const count = await db.members.count();
+            if (count === 0) {
+                await db.members.add({ name: "Myself" });
+            }
+        }
+
+        // Handle Form Visibility changes based on Dropdown
+        function togglePrescriptionUpload() {
+            const type = document.getElementById('med-type').value;
+            const container = document.getElementById('prescription-upload-container');
+            const imgLabel = document.getElementById('image-label');
+            
+            if (type === 'Prescribed') {
+                container.classList.remove('hidden');
+                imgLabel.innerText = "Upload Strip/Tablet Photo *";
+            } else {
+                container.classList.add('hidden');
+                document.getElementById('prescription-image').value = ""; // Clear file
+                imgLabel.innerText = "Upload Strip/Tablet Photo *";
+            }
+        }
+
+        // Add Family Member
+        async function addFamilyMember() {
+            const nameInput = document.getElementById('new-member-name');
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            const existing = await db.members.where("name").equalsIgnoreCase(name).first();
+            if (!existing) {
+                await db.members.add({ name: name });
+                nameInput.value = "";
+                await renderMembers();
+            } else {
+                alert("Profile name already exists!");
+            }
+        }
+
+        // Delete Family Member
+        async function deleteMember(id, name) {
+            if (name === "Myself") return alert("Cannot delete primary profile 'Myself'");
+            if (confirm(`Remove profile for ${name}?`)) {
+                await db.members.delete(id);
+                await renderMembers();
+            }
+        }
+
+        // Render Dropdown options and Badges
+        async function renderMembers() {
+            const members = await db.members.toArray();
+            
+            // Render Badges
+            const badgeContainer = document.getElementById('members-badge-list');
+            badgeContainer.innerHTML = members.map(m => `
+                <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-md border border-gray-200">
+                    ${m.name}
+                    ${m.name !== 'Myself' ? `<button onclick="deleteMember(${m.id}, '${m.name}')" class="text-gray-400 hover:text-red-500 font-bold ml-1">×</button>` : ''}
+                </span>
+            `).join('');
+
+            // Render Select Dropdown
+            const selectElement = document.getElementById('med-user');
+            selectElement.innerHTML = members.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+        }
+
+        // Helper function to turn File Object to Base64 String
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                if (!file) resolve(null);
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        // Save Form Log Entry
+        async function saveMedicineLog(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('med-name').value.trim();
+            const reason = document.getElementById('med-reason').value.trim();
+            const userName = document.getElementById('med-user').value;
+            const type = document.getElementById('med-type').value;
+            
+            const medImgFile = document.getElementById('med-image').files[0];
+            const rxImgFile = document.getElementById('prescription-image').files[0];
+
+            // Auto Capture Date & Time
+            const timestamp = new Date().toISOString();
+
+            try {
+                const medImageBase64 = await fileToBase64(medImgFile);
+                const rxImageBase64 = await fileToBase64(rxImgFile);
+
+                await db.logs.add({
+                    name,
+                    reason,
+                    userName,
+                    type,
+                    timestamp,
+                    medImage: medImageBase64,
+                    rxImage: rxImageBase64
+                });
+
+                document.getElementById('med-form').reset();
+                togglePrescriptionUpload();
+                await renderLogs();
+            } catch (err) {
+                console.error("Error saving to database:", err);
+                alert("Failed to save data. The image file might be too large.");
+            }
+        }
+
+        // Delete Log Record
+        async function deleteLog(id) {
+            if(confirm("Are you sure you want to permanently delete this entry?")) {
+                await db.logs.delete(id);
+                await renderLogs();
+            }
+        }
+
+        // Render History List
+        async function renderLogs() {
+            const logs = await db.logs.orderBy('timestamp').reverse().toArray();
+            document.getElementById('log-count').innerText = `${logs.length} entries`;
+
+            const container = document.getElementById('history-container');
+            if(logs.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center p-8 border-2 border-dashed border-gray-200 rounded-xl bg-white text-gray-400 text-sm">
+                        No medicine logs tracked yet. Fill out the form above to start!
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = logs.map(log => {
+                const dateObj = new Date(log.timestamp);
+                const formattedDate = dateObj.toLocaleDateString('en-IN', { dateStyle: 'medium' });
+                const formattedTime = dateObj.toLocaleTimeString('en-IN', { timeStyle: 'short' });
+                
+                return `
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="p-4 space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="font-bold text-gray-900 text-base">${log.name}</h3>
+                                    <p class="text-xs text-gray-500">${formattedDate} at ${formattedTime}</p>
+                                </div>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${log.type === 'Prescribed' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}">
+                                    ${log.type}
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-y-1.5 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                                <div><span class="text-gray-400">Target User:</span> <strong class="text-gray-700">${log.userName}</strong></div>
+                                <div><span class="text-gray-400">Indication:</span> <strong class="text-gray-700">${log.reason}</strong></div>
+                            </div>
+
+                            <!-- Image Preview Blocks -->
+                            <div class="grid grid-cols-2 gap-2 pt-1">
+                                ${log.medImage ? `
+                                    <div class="space-y-1">
+                                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tablet Image</span>
+                                        <a href="${log.medImage}" target="_blank" title="Click to expand view">
+                                            <img src="${log.medImage}" class="w-full h-24 object-cover rounded-lg border border-gray-200 bg-gray-50 hover:opacity-90 transition">
+                                        </a>
+                                    </div>` : ''}
+                                ${log.rxImage ? `
+                                    <div class="space-y-1">
+                                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Prescription</span>
+                                        <a href="${log.rxImage}" target="_blank" title="Click to expand view">
+                                            <img src="${log.rxImage}" class="w-full h-24 object-cover rounded-lg border border-gray-200 bg-gray-50 hover:opacity-90 transition">
+                                        </a>
+                                    </div>` : ''}
+                            </div>
+
+                            <div class="flex justify-end pt-2 border-t border-gray-100">
+                                <button onclick="deleteLog(${log.id})" class="text-xs font-medium text-red-500 hover:text-red-700 transition">
+                                    🗑️ Delete Entry
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Initialize on windows load
+        window.onload = initApp;
+    </script>
+</body>
+</html>
